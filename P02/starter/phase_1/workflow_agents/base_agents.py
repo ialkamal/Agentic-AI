@@ -241,6 +241,7 @@ class EvaluationAgent:
         # This method manages interactions between agents to achieve a solution.
         client = OpenAI(base_url="https://openai.vocareum.com/v1", api_key=self.openai_api_key)
         prompt_to_evaluate = initial_prompt
+        response_from_worker=""
         iterations = 0
         evaluation = ""
 
@@ -299,7 +300,7 @@ class EvaluationAgent:
                     f"Make only these corrections, do not alter content validity: {instructions}"
                 )
         return {
-            "final_response": prompt_to_evaluate,
+            "final_response": response_from_worker,
             "evaluation": evaluation,
             "iterations": iterations
         }   
@@ -363,7 +364,7 @@ class ActionPlanningAgent:
         client = OpenAI(base_url="https://openai.vocareum.com/v1", api_key=self.open_api_key)
         response = client.chat.completions.create(model="gpt-4o", messages=[
             {"role": "system", "content": f"You are an action planning agent. Using your knowledge, you extract from the user prompt the steps requested to complete the action the user is asking for. You return the steps as a list. Only return the steps in your knowledge. Forget any previous context. This is your knowledge: {self.knowledge}"},
-            {"role": "user", "content": prompt}])
+            {"role": "user", "content": prompt}],temperature=0)
 
         response_text = response.choices[0].message.content
         if response_text is None:

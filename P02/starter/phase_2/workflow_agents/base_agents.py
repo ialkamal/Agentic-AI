@@ -241,19 +241,19 @@ class EvaluationAgent:
         # This method manages interactions between agents to achieve a solution.
         client = OpenAI(base_url="https://openai.vocareum.com/v1", api_key=self.openai_api_key)
         prompt_to_evaluate = initial_prompt
+        response_from_worker=""
         iterations = 0
         evaluation = ""
-        response_from_worker = ""
 
         for i in range(self.max_interactions):
             print(f"\n--- Interaction {i+1} ---")
 
-            # print(" Step 1: Worker agent generates a response to the prompt")
-            # print(f"Prompt:\n{prompt_to_evaluate}")
+            #print(" Step 1: Worker agent generates a response to the prompt")
+            #print(f"Prompt:\n{prompt_to_evaluate}")
             response_from_worker = self.worker_agent.respond(prompt_to_evaluate)
-            # print(f"Worker Agent Response:\n{response_from_worker}")
+            #print(f"Worker Agent Response:\n{response_from_worker}")
 
-            # print(" Step 2: Evaluator agent judges the response")
+            #print(" Step 2: Evaluator agent judges the response")
             eval_prompt = (
                 f"Does the following answer: {response_from_worker}\n"
                 f"Meet this criteria:   {self.evaluation_criteria}\n"
@@ -268,16 +268,16 @@ class EvaluationAgent:
                 temperature=0
             )
             evaluation = response.choices[0].message.content.strip()
-            # print(f"Evaluator Agent Evaluation:\n{evaluation}")
+            #print(f"Evaluator Agent Evaluation:\n{evaluation}")
 
             iterations += 1
 
-            # print(" Step 3: Check if evaluation is positive")
+            #print(" Step 3: Check if evaluation is positive")
             if evaluation.lower().startswith("yes"):
-                print("\n✅ Final solution accepted.")
+                print("✅ Final solution accepted.")
                 break
             else:
-                # print(" Step 4: Generate instructions to correct the response")
+                #print(" Step 4: Generate instructions to correct the response")
                 instruction_prompt = (
                     f"Provide instructions to fix an answer based on these reasons why it is incorrect: {evaluation}"
                 )
@@ -333,16 +333,9 @@ class RoutingAgent():
             agent_emb = self.get_embedding(agent["description"])
             if agent_emb is None:
                 continue
-            
-            # print("***********************************")
-            # print("INPUT EMB: \n",user_input)
-            # print("***********************************")
-            # print("AGENT DESC: \n",agent["description"])
-            # print("***********************************")
-            
 
             similarity = np.dot(input_emb, agent_emb) / (np.linalg.norm(input_emb) * np.linalg.norm(agent_emb))
-            #print(similarity)
+            print(similarity)
 
             if similarity > best_score:
                 best_score = similarity
@@ -371,7 +364,7 @@ class ActionPlanningAgent:
         client = OpenAI(base_url="https://openai.vocareum.com/v1", api_key=self.open_api_key)
         response = client.chat.completions.create(model="gpt-4o", messages=[
             {"role": "system", "content": f"You are an action planning agent. Using your knowledge, you extract from the user prompt the steps requested to complete the action the user is asking for. You return the steps as a list. Only return the steps in your knowledge. Forget any previous context. This is your knowledge: {self.knowledge}"},
-            {"role": "user", "content": prompt}])
+            {"role": "user", "content": prompt}],temperature=0)
 
         response_text = response.choices[0].message.content
         if response_text is None:

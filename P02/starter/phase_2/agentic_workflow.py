@@ -132,8 +132,7 @@ routing_agent = RoutingAgent(openai_api_key, agents_list)
 #   3. Have the response evaluated by the corresponding Evaluation Agent.
 #   4. Return the final validated response.
 def product_manager_support_function(input):
-    response = product_manager_knowledge_agent.respond(input)
-    evaluation = product_manager_evaluation_agent.evaluate(response)
+    evaluation = product_manager_evaluation_agent.evaluate(input)
     if evaluation:
         return evaluation["final_response"]
     else:
@@ -160,7 +159,8 @@ def development_engineer_support_function(input):
 print("\n*** Workflow execution started ***\n")
 # Workflow Prompt
 # ****
-workflow_prompt = "What would the development tasks for this product be? Only provide the list of steps grouped into 3 steps."
+workflow_prompt = """Based on the customer requirements, provide the user stories, product features, and engineering tasks. There should be three steps in total.
+"""
 # ****
 print(f"Task to complete in this workflow, workflow prompt = {workflow_prompt}")
 
@@ -184,8 +184,14 @@ for i,step in enumerate(workflow_steps):
     print("\n================================\n")
     result = routing_agent.route(step + " " + result)
     completed_steps.append(result)
-    if i == len(workflow_steps) - 1:
-        print(f"\nFinal Output of the workflow:\n{result}")
-    else:
-        print(f"Result of step:\n{result}\n")
-        print(f"Moving to the next step...\n")
+    print(f"Result of step:\n{result}\n")
+    print(f"Moving to the next step...\n")
+
+
+print("\n================================\n")
+print(f"USER STORIES:\n{completed_steps[0]}\n")
+print("\n================================\n")
+print(f"FEATURES:\n{completed_steps[1]}\n")
+print("\n================================\n")
+print(f"ENGINEERING TASKS:\n{completed_steps[2]}\n")
+print("\n================================\n")
