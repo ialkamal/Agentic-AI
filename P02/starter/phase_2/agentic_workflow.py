@@ -46,7 +46,7 @@ product_manager_evaluation_agent = EvaluationAgent(
 
 # Program Manager - Knowledge Augmented Prompt Agent
 persona_program_manager = "You are a Program Manager, you are responsible for defining the features for a product."
-knowledge_program_manager = "Features of a product are defined by organizing similar user stories into cohesive groups."
+knowledge_program_manager = "Features of a product are defined by organizing similar user stories into cohesive groups. Your o"
 # Instantiate a program_manager_knowledge_agent using 'persona_program_manager' and 'knowledge_program_manager'
 # (This is a necessary step before TODO 8. Students should add the instantiation code here.)
 program_manager_knowledge_agent = KnowledgeAugmentedPromptAgent(openai_api_key, persona_program_manager, knowledge_program_manager)
@@ -65,11 +65,13 @@ persona_program_manager_eval = "You are an evaluation agent that checks the answ
 program_manager_evaluation_agent = EvaluationAgent(
     openai_api_key, 
     persona_program_manager_eval, 
-    "The answer should be product features that follow the following structure:" \
-    "Feature Name: A clear, concise title that identifies the capability\n" \
-    "Description: A brief explanation of what the feature does and its purpose\n" \
-    "Key Functionality: The specific capabilities or actions the feature provides\n" \
-    "User Benefit: How this feature creates value for the user", 
+    "The answer must be a list of product features. Each feature MUST use these exact labels:\n"
+    "Feature Name: <a clear, concise title that identifies the capability>\n"
+    "Description: <a brief explanation of what the feature does and its purpose>\n"
+    "Key Functionality: <the specific capabilities or actions the feature provides>\n"
+    "User Benefit: <how this feature creates value for the user>\n"
+    "Reject any answer that uses different headings (e.g. 'Explanation', 'Specific Capabilities', etc.) "
+    "or omits any of the four required labels.", 
     program_manager_knowledge_agent, 5)
 
 # Development Engineer - Knowledge Augmented Prompt Agent
@@ -109,17 +111,17 @@ agents_list = [
     {
         "name": "Product Manager",
         "description": "defining user stories for a product",
-        "func": lambda x : product_manager_support_function(x)
+        "func": lambda query: product_manager_support_function(query)
     },
     {
         "name": "Program Manager",
         "description": "Define features based on user stories for the product",
-        "func": lambda x : program_manager_support_function(x)
+        "func": lambda query: program_manager_support_function(query)
     },
     {
         "name": "Development Engineer",
         "description": "Break down the engineering work required to develop the product for each user story under the given features",
-        "func": lambda x : development_engineer_support_function(x)
+        "func": lambda query: development_engineer_support_function(query)
     }
 ]
 routing_agent = RoutingAgent(openai_api_key, agents_list)
@@ -131,24 +133,36 @@ routing_agent = RoutingAgent(openai_api_key, agents_list)
 #   2. Get a response from the respective Knowledge Augmented Prompt Agent.
 #   3. Have the response evaluated by the corresponding Evaluation Agent.
 #   4. Return the final validated response.
-def product_manager_support_function(input):
-    evaluation = product_manager_evaluation_agent.evaluate(input)
+def product_manager_support_function(query):
+    """Evaluate user-story output from the Product Manager agent."""
+    evaluation = product_manager_evaluation_agent.evaluate(query)
     if evaluation:
         return evaluation["final_response"]
     else:
         return "The response did not meet the evaluation criteria."
 
-def program_manager_support_function(input):
-    response = program_manager_knowledge_agent.respond(input)
-    evaluation = program_manager_evaluation_agent.evaluate(response)
+def program_manager_support_function(query):
+    """Evaluate feature-definition output from the Program Manager agent.
+
+    Passes the raw query to the evaluation agent so its built-in worker
+    generates the response *and* the evaluator can iteratively refine it.
+    (Calling .respond() first would feed an already-formatted answer as
+    the 'prompt', confusing the feedback loop.)
+    """
+    evaluation = program_manager_evaluation_agent.evaluate(query)
     if evaluation:
         return evaluation["final_response"]
     else:
         return "The response did not meet the evaluation criteria."
-    
-def development_engineer_support_function(input):
-    response = development_engineer_knowledge_agent.respond(input)
-    evaluation = development_engineer_evaluation_agent.evaluate(response)
+
+def development_engineer_support_function(query):
+    """Evaluate engineering-task output from the Dev Engineer agent.
+
+    Same pattern as product_manager_support_function: let the evaluation
+    agent's worker generate the response so the feedback loop can refine
+    it against the criteria.
+    """
+    evaluation = development_engineer_evaluation_agent.evaluate(query)
     if evaluation:
         return evaluation["final_response"]
     else:

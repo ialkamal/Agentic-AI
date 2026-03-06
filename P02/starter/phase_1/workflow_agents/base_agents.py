@@ -4,26 +4,24 @@ import pandas as pd
 import re
 import csv
 import uuid
-import os
-import ast
 from datetime import datetime
 
 
-# DirectPromptAgent class definition
 class DirectPromptAgent:
-    
+    """Minimal agent that forwards a raw prompt to the LLM with no extra context."""
+
     def __init__(self, openai_api_key):
-        # Initialize the agent
+        """Store API credentials for later calls."""
         self.openai_api_key = openai_api_key
 
     def respond(self, prompt):
-        # Generate a response using the OpenAI API
+        """Send *prompt* directly to the LLM and return the response text."""
         client = OpenAI(
                         base_url = "https://openai.vocareum.com/v1",
                         api_key = self.openai_api_key
                         )
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-3.5-turbo",
             messages=[
                 {
                     "role":"user",
@@ -36,24 +34,25 @@ class DirectPromptAgent:
 
         
 
-# AugmentedPromptAgent class definition
 class AugmentedPromptAgent:
+    """Agent that prepends a persona-based system prompt before querying the LLM."""
+
     def __init__(self, openai_api_key, persona):
-        """Initialize the agent with given attributes."""
+        """Store API credentials and the persona system prompt."""
         self.persona = persona
         self.openai_api_key = openai_api_key
 
     def respond(self, input_text):
-        """Generate a response using OpenAI API."""
+        """Generate a persona-augmented response for *input_text*."""
         client = OpenAI(
                         base_url = "https://openai.vocareum.com/v1",
                         api_key = self.openai_api_key
                         )
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": self.persona},
+                {"role": "system", "content": self.persona + "You must forget previous context."},
                 {"role": "user", "content": input_text}
             ],
             temperature=0
@@ -62,22 +61,27 @@ class AugmentedPromptAgent:
 
 
 
-# KnowledgeAugmentedPromptAgent class definition
 class KnowledgeAugmentedPromptAgent:
+    """Agent that constrains LLM answers to a supplied knowledge block.
+
+    The system prompt instructs the model to ignore its own training data
+    and answer exclusively from the injected *knowledge* string.
+    """
+
     def __init__(self, openai_api_key, persona, knowledge):
-        """Initialize the agent with provided attributes."""
+        """Store API credentials, persona, and the knowledge to ground answers on."""
         self.persona = persona
         self.knowledge = knowledge
         self.openai_api_key = openai_api_key
 
     def respond(self, input_text):
-        """Generate a response using the OpenAI API."""
+        """Return an LLM response grounded only in *self.knowledge*."""
         client = OpenAI(
                         base_url = "https://openai.vocareum.com/v1",
                         api_key = self.openai_api_key
                         )
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": f"You are {self.persona} knowledge-based assistant. Forget all previous context. Use only the following knowledge to answer, do not use your own knowledge: {self.knowledge}. Answer the prompt based on this knowledge, not your own."},
                 {"role":"user","content":input_text}
@@ -228,20 +232,39 @@ class RAGKnowledgePromptAgent:
 
 
 class EvaluationAgent:
-    
+    """Iterative evaluator that pairs a worker agent with an LLM judge.
+
+    The evaluate() loop repeatedly asks the worker to respond, then asks the
+    evaluator LLM whether the response meets the criteria.  If it does not,
+    corrective instructions are generated and fed back to the worker for
+    another attempt, up to *max_interactions* rounds.
+    """
+
     def __init__(self, openai_api_key, persona, evaluation_criteria, worker_agent, max_interactions):
-        # Initialize the EvaluationAgent with given attributes.
-        self.openai_api_key= openai_api_key
-        self.persona= persona 
-        self.evaluation_criteria= evaluation_criteria
-        self.worker_agent= worker_agent 
-        self.max_interactions=max_interactions
+        self.openai_api_key = openai_api_key
+        self.persona = persona
+        self.evaluation_criteria = evaluation_criteria
+        self.worker_agent = worker_agent
+        self.max_interactions = max_interactions
 
     def evaluate(self, initial_prompt):
-        # This method manages interactions between agents to achieve a solution.
+        """Run the worker ↔ evaluator feedback loop.
+
+        For each iteration the method:
+          1. Asks the worker agent to respond to the (possibly revised) prompt.
+          2. Asks the evaluator LLM whether the response satisfies
+             *self.evaluation_criteria*.
+          3. If the evaluator says "Yes" → return immediately.
+          4. Otherwise, generates corrective instructions and builds a new
+             prompt that includes the original request, the failed response,
+             and the instructions — then loops.
+
+        Returns:
+            dict with keys 'final_response', 'evaluation', and 'iterations'.
+        """
         client = OpenAI(base_url="https://openai.vocareum.com/v1", api_key=self.openai_api_key)
         prompt_to_evaluate = initial_prompt
-        response_from_worker=""
+        response_from_worker = ""
         iterations = 0
         evaluation = ""
 
@@ -255,12 +278,14 @@ class EvaluationAgent:
 
             print(" Step 2: Evaluator agent judges the response")
             eval_prompt = (
-                f"Does the following answer: {response_from_worker}\n"
-                f"Meet this criteria:   {self.evaluation_criteria}\n"
-                f"Respond Yes or No, and the reason why it does or doesn't meet the criteria."
+                f"Evaluate whether the following answer meets the criteria.\n\n"
+                f"Answer to evaluate:\n{response_from_worker}\n\n"
+                f"Criteria:\n{self.evaluation_criteria}\n\n"
+                f"Start your response with exactly 'Yes' if the answer meets the criteria, "
+                f"or exactly 'No' if it does not. Then explain why."
             )
             response = client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": f"You are an evaluator agent with the persona: {self.persona}"},
                     {"role": "user", "content": eval_prompt}
@@ -272,8 +297,17 @@ class EvaluationAgent:
 
             iterations += 1
 
+            # Detect whether the evaluator approved the answer.
+            # Guard against contradictory responses like "No, the answer meets..."
+            # by also checking whether the explanation says it passes.
+            eval_lower = evaluation.lower()
+            approved = (
+                eval_lower.startswith("yes")
+                or ("meets the criteria" in eval_lower and "does not meet" not in eval_lower)
+            )
+
             print(" Step 3: Check if evaluation is positive")
-            if evaluation.lower().startswith("yes"):
+            if approved:
                 print("✅ Final solution accepted.")
                 break
             else:
@@ -282,7 +316,7 @@ class EvaluationAgent:
                     f"Provide instructions to fix an answer based on these reasons why it is incorrect: {evaluation}"
                 )
                 response = client.chat.completions.create(
-                    model="gpt-4o",
+                    model="gpt-3.5-turbo",
                     messages=[
                         {"role": "system", "content": f"You are an evaluator agent with the persona: {self.persona}"},
                         {"role": "user", "content": instruction_prompt}
@@ -307,25 +341,35 @@ class EvaluationAgent:
 
 
 
-class RoutingAgent():
+class RoutingAgent:
+    """Semantic router that dispatches a query to the best-matching agent.
+
+    Each registered agent carries a short *description*.  At routing time the
+    query and every description are embedded, and the agent whose description
+    is most cosine-similar to the query wins.
+    """
 
     def __init__(self, openai_api_key, agents):
-        # Initialize the agent with given attributes
         self.openai_api_key = openai_api_key
         self.agents = agents
 
     def get_embedding(self, text):
+        """Return the embedding vector for *text* via the OpenAI API."""
         client = OpenAI(base_url="https://openai.vocareum.com/v1", api_key=self.openai_api_key)
         response = client.embeddings.create(
             model="text-embedding-3-large",
             input=text
         )
-        # Extract and return the embedding vector from the response
-        embedding = response.data[0].embedding
-        return embedding 
+        return response.data[0].embedding
 
-    def route(self, user_input):
-        input_emb = self.get_embedding(user_input)
+    def route(self, user_query):
+        """Select the best agent for *user_query* using cosine similarity.
+
+        Embeds the query and each agent's description, then picks the agent
+        with the highest cosine-similarity score.  Delegates execution to
+        that agent's ``func`` callable.
+        """
+        query_emb = self.get_embedding(user_query)
         best_agent = None
         best_score = -1
 
@@ -334,7 +378,8 @@ class RoutingAgent():
             if agent_emb is None:
                 continue
 
-            similarity = np.dot(input_emb, agent_emb) / (np.linalg.norm(input_emb) * np.linalg.norm(agent_emb))
+            # Cosine similarity between the query and the agent description
+            similarity = np.dot(query_emb, agent_emb) / (np.linalg.norm(query_emb) * np.linalg.norm(agent_emb))
             print(similarity)
 
             if similarity > best_score:
@@ -345,8 +390,8 @@ class RoutingAgent():
             return "Sorry, no suitable agent could be selected."
 
         print(f"[Router] Best agent: {best_agent['name']} (score={best_score:.3f})")
-        
-        return best_agent["func"](user_input)
+
+        return best_agent["func"](user_query)
     
     
 
@@ -354,23 +399,40 @@ class RoutingAgent():
 
 
 class ActionPlanningAgent:
+    """Decomposes a high-level prompt into discrete workflow steps.
+
+    The LLM is instructed to extract only the steps that are grounded
+    in the agent's *knowledge* (e.g. the PM methodology definitions).
+    """
 
     def __init__(self, openai_api_key, knowledge):
-        self.open_api_key = openai_api_key
+        self.openai_api_key = openai_api_key   # was "open_api_key" — standardised
         self.knowledge = knowledge
 
     def extract_steps_from_prompt(self, prompt):
+        """Ask the LLM to break *prompt* into a list of action steps.
 
-        client = OpenAI(base_url="https://openai.vocareum.com/v1", api_key=self.open_api_key)
-        response = client.chat.completions.create(model="gpt-4o", messages=[
-            {"role": "system", "content": f"You are an action planning agent. Using your knowledge, you extract from the user prompt the steps requested to complete the action the user is asking for. You return the steps as a list. Only return the steps in your knowledge. Forget any previous context. This is your knowledge: {self.knowledge}"},
-            {"role": "user", "content": prompt}],temperature=0)
+        Returns:
+            list[str]: One string per step, stripped of bullets/numbering.
+        """
+        client = OpenAI(base_url="https://openai.vocareum.com/v1", api_key=self.openai_api_key)
+        response = client.chat.completions.create(model="gpt-3.5-turbo", messages=[
+            {"role": "system", "content": f"You are an action planning agent. Using your knowledge, you extract from the user prompt the steps requested to complete the action the user is asking for. You return the steps as a clean list. You must remove empty steps, numberings or bullets. Only return the steps in your knowledge. Forget any previous context. This is your knowledge: {self.knowledge}"},
+            {"role": "user", "content": prompt}], temperature=0)
 
         response_text = response.choices[0].message.content
         if response_text is None:
             return []
         response_text = response_text.strip()
 
-        steps = response_text.split("\n")
+        # Split on newlines, strip leading bullets/numberings and whitespace,
+        # then drop any lines that are empty after cleaning.
+        # Handles patterns like "1.", "1)", "- ", "* ", "• ", "Step 1:", etc.
+        bullet_re = re.compile(r'^(?:[-*•]\s*|\d+[.):]\s*|step\s*\d+[:.\-]?\s*)', re.IGNORECASE)
+        steps = []
+        for line in response_text.split("\n"):
+            cleaned = bullet_re.sub('', line).strip()
+            if cleaned:
+                steps.append(cleaned)
 
         return steps
