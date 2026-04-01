@@ -290,7 +290,7 @@ cat > "${TASKDEF_FILE}" <<JSON
         }
       },
       "healthCheck": {
-        "command": ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"],
+        "command": ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)\" || exit 1"],
         "interval": 30,
         "timeout": 10,
         "retries": 3,
@@ -331,6 +331,7 @@ if [[ "${SERVICE_STATUS}" == "ACTIVE" || "${SERVICE_STATUS}" == "DRAINING" ]]; t
     --cluster "${ECS_CLUSTER_NAME}" \
     --service "${ECS_SERVICE_NAME}" \
     --network-configuration "${NETWORK_CFG}" \
+    --health-check-grace-period-seconds 120 \
     --task-definition "${TASK_DEF_ARN}" \
     --force-new-deployment >/dev/null
 else
@@ -340,6 +341,7 @@ else
     --service-name "${ECS_SERVICE_NAME}" \
     --task-definition "${TASK_DEF_ARN}" \
     --desired-count 1 \
+    --health-check-grace-period-seconds 120 \
     --launch-type FARGATE \
     --network-configuration "${NETWORK_CFG}" \
     --load-balancers targetGroupArn="${TG_ARN}",containerName="${PROJECT_NAME}-api",containerPort=8000 >/dev/null
