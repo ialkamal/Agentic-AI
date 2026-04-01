@@ -81,6 +81,17 @@ if [[ "${SERVICE_STATUS}" == "ACTIVE" || "${SERVICE_STATUS}" == "DRAINING" ]]; t
   done
 fi
 
+# Wait until all tasks in cluster are stopped before deleting cluster
+echo "  Waiting for all ECS tasks to stop..."
+for _ in $(seq 1 80); do
+  RUNNING_COUNT="$(aws ecs describe-clusters --region "${AWS_REGION}" --clusters "${ECS_CLUSTER_NAME}" --query 'clusters[0].runningCount' --output text 2>/dev/null || true)"
+  if [[ "${RUNNING_COUNT}" == "0" || -z "${RUNNING_COUNT}" || "${RUNNING_COUNT}" == "None" ]]; then
+    break
+  fi
+  echo "  Waiting for ${RUNNING_COUNT} task(s) to stop..."
+  sleep 10
+done
+
 if aws ecs describe-clusters --region "${AWS_REGION}" --clusters "${ECS_CLUSTER_NAME}" --query 'clusters[0].clusterName' --output text 2>/dev/null | grep -q "${ECS_CLUSTER_NAME}"; then
   aws ecs delete-cluster --region "${AWS_REGION}" --cluster "${ECS_CLUSTER_NAME}" >/dev/null || true
 fi
@@ -174,7 +185,20 @@ if [[ -n "${VPC_ID}" && "${VPC_ID}" != "None" ]]; then
   for sg_name in "${PROJECT_NAME}-alb-sg" "${PROJECT_NAME}-ecs-sg" "${PROJECT_NAME}-rds-sg"; do
     SG_ID="$(aws ec2 describe-security-groups --region "${AWS_REGION}" --filters Name=group-name,Values="${sg_name}" Name=vpc-id,Values="${VPC_ID}" --query 'SecurityGroups[0].GroupId' --output text 2>/dev/null || true)"
     if [[ -n "${SG_ID}" && "${SG_ID}" != "None" ]]; then
-      aws ec2 delete-security-group --region "${AWS_REGION}" --group-id "${SG_ID}" >/dev/null || true
+      # Retry logic to handle dependency violations (ALB ENI may still be releasing)
+      for attempt in $(seq 1 10); do
+        if aws ec2 delete-security-group --region "${AWS_REGION}" --group-id "${SG_ID}" 2>/dev/null; then
+          echo "  Deleted security group ${sg_name} (${SG_ID})"
+          break
+        else
+          if [[ ${attempt} -lt 10 ]]; then
+            echo "  Attempt ${attempt}/10: Waiting for dependencies on ${sg_name} (${SG_ID}) to be released..."
+            sleep 15
+          else
+            echo "  WARNING: Could not delete ${sg_name} (${SG_ID}) after 10 attempts due to dependency violations"
+          fi
+        fi
+      done
     fi
   done
 fi
