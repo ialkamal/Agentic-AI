@@ -1,0 +1,36 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python virtual environments
+.venv
+venv/
+env/
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Tool/test/runtime artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local databases and logs
+*.db
+*.sqlite
+*.sqlite3
+*.log
+
+# Notebook and OS/editor artifacts
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
+
+# Project-specific generated files
+P05/test_results.csv
+P05/Agentic_Workflow.png

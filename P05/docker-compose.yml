@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: paper-supply-db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: localpassword123
+      POSTGRES_DB: paper_supplies
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d paper_supplies"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Paper Supply API
+  api:
+    build: .
+    container_name: paper-supply-api
+    environment:
+      DB_TYPE: postgres
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: admin
+      DB_PASSWORD: localpassword123
+      DB_NAME: paper_supplies
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: uvicorn api:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:

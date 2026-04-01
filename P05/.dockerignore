@@ -1,0 +1,71 @@
+# Git
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv
+venv/
+ENV/
+env/
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Project specific
+*.db
+munder_difflin.db
+*.sqlite
+*.sqlite3
+*.log
+node_modules/
+
+# Documentation
+*.md
+!README.md
+
+# Testing
+test_results.csv
+.pytest_cache
+
+# Large files
+*.csv
+*.json.gz
+
+# Keep seed data required at runtime startup
+!quote_requests.csv
+!quotes.csv

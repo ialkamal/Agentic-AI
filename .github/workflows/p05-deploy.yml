@@ -1,0 +1,53 @@
+name: P05 Deploy
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "P05/**"
+      - ".github/workflows/p05-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: p05-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Verify required secrets are set
+        run: |
+          set -euo pipefail
+          test -n "${{ secrets.AWS_ACCOUNT_ID }}"
+          test -n "${{ secrets.OPENAI_API_KEY }}"
+          test -n "${{ secrets.DB_PASSWORD }}"
+
+      - name: Make deploy script executable
+        run: chmod +x deploy_aws_resources.sh
+        working-directory: P05
+
+      - name: Deploy app and infrastructure
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
+        run: ./deploy_aws_resources.sh
+        working-directory: P05

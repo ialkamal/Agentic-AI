@@ -1,0 +1,65 @@
+name: P05 Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: "Type DESTROY to confirm resource teardown"
+        required: true
+        type: string
+      project_name:
+        description: "Project name (defaults to paper-supply)"
+        required: false
+        default: "paper-supply"
+        type: string
+
+concurrency:
+  group: p05-destroy
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Validate confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]; then
+            echo "Confirmation failed. You must type DESTROY exactly."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Verify required secrets are set
+        run: |
+          set -euo pipefail
+          test -n "${{ secrets.AWS_ACCOUNT_ID }}"
+
+      - name: Make destroy script executable
+        run: chmod +x destroy_aws_resources.sh
+        working-directory: P05
+
+      - name: Destroy app and infrastructure
+        env:
+          FORCE: "true"
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          PROJECT_NAME: ${{ github.event.inputs.project_name }}
+          DELETE_RDS: "true"
+          DELETE_SECRETS: "true"
+          DELETE_ECR: "true"
+          DELETE_LOG_GROUP: "true"
+          SKIP_FINAL_SNAPSHOT: "true"
+        run: ./destroy_aws_resources.sh
+        working-directory: P05
