@@ -111,7 +111,7 @@ fi
 
 SUBNET_ID_1="${SUBNET_IDS[0]}"
 SUBNET_ID_2="${SUBNET_IDS[1]}"
-ALL_SUBNET_IDS_CSV="$(IFS=,; echo "${SUBNET_IDS[*]}")"
+ALB_ECS_SUBNET_IDS_CSV="${SUBNET_ID_1},${SUBNET_ID_2}"
 
 echo "[2/12] Creating ECR repository (if missing)..."
 if ! aws ecr describe-repositories --region "${AWS_REGION}" --repository-names "${ECR_REPO_NAME}" >/dev/null 2>&1; then
@@ -323,13 +323,14 @@ fi
 echo "[12/12] Creating/updating ECS service..."
 SERVICE_STATUS="$(aws ecs describe-services --region "${AWS_REGION}" --cluster "${ECS_CLUSTER_NAME}" --services "${ECS_SERVICE_NAME}" --query 'services[0].status' --output text 2>/dev/null || true)"
 
-NETWORK_CFG="awsvpcConfiguration={subnets=[${ALL_SUBNET_IDS_CSV}],securityGroups=[${ECS_SG_ID}],assignPublicIp=ENABLED}"
+NETWORK_CFG="awsvpcConfiguration={subnets=[${ALB_ECS_SUBNET_IDS_CSV}],securityGroups=[${ECS_SG_ID}],assignPublicIp=ENABLED}"
 
 if [[ "${SERVICE_STATUS}" == "ACTIVE" || "${SERVICE_STATUS}" == "DRAINING" ]]; then
   aws ecs update-service \
     --region "${AWS_REGION}" \
     --cluster "${ECS_CLUSTER_NAME}" \
     --service "${ECS_SERVICE_NAME}" \
+    --network-configuration "${NETWORK_CFG}" \
     --task-definition "${TASK_DEF_ARN}" \
     --force-new-deployment >/dev/null
 else
