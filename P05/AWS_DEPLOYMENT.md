@@ -3,6 +3,7 @@
 ## Deployment Strategy
 
 This guide covers deploying the Paper Supply Agent API on AWS using:
+
 - **Container Registry**: Amazon ECR (Elastic Container Registry)
 - **Compute**: ECS Fargate (recommended) or EC2
 - **Database**: Amazon RDS PostgreSQL
@@ -407,36 +408,36 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v2
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
-    
-    - name: Login to Amazon ECR
-      run: |
-        aws ecr get-login-password --region $AWS_REGION | \
-        docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
-    
-    - name: Build and push Docker image
-      env:
-        ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-      run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
-    
-    - name: Update ECS service
-      run: |
-        aws ecs update-service \
-          --cluster paper-supply-cluster \
-          --service paper-supply-api-service \
-          --force-new-deployment \
-          --region $AWS_REGION
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+          docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }} .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.sha }}
+
+      - name: Update ECS service
+        run: |
+          aws ecs update-service \
+            --cluster paper-supply-cluster \
+            --service paper-supply-api-service \
+            --force-new-deployment \
+            --region $AWS_REGION
 ```
 
 ## Step 9: Database Initialization
@@ -495,6 +496,7 @@ aws cloudwatch put-metric-alarm \
 ## Cost Optimization
 
 1. **Use Fargate Spot**: 70% cheaper but less reliable
+
    ```bash
    --launch-type FARGATE_SPOT
    ```

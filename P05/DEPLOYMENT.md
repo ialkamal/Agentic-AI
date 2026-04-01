@@ -7,17 +7,20 @@ Complete deployment solution for the Paper Supply multi-agent system with FastAP
 ### Local Development (SQLite)
 
 1. **Install dependencies:**
+
    ```bash
    pip install -r requirements-prod.txt
    ```
 
 2. **Set up environment:**
+
    ```bash
    cp .env.example .env.local
    # Edit .env.local with your OpenAI API key
    ```
 
 3. **Run API:**
+
    ```bash
    python project_starter.py  # Initialize database
    uvicorn api:app --reload --port 8000
@@ -31,6 +34,7 @@ Complete deployment solution for the Paper Supply multi-agent system with FastAP
 ### Local Development (With PostgreSQL in Docker)
 
 1. **Start services:**
+
    ```bash
    docker-compose up -d
    ```
@@ -89,6 +93,7 @@ Complete deployment solution for the Paper Supply multi-agent system with FastAP
 ## Environment Configuration
 
 ### Local Development (SQLite)
+
 ```bash
 DB_TYPE=sqlite
 SQLITE_PATH=munder_difflin.db
@@ -96,6 +101,7 @@ OPENAI_API_KEY=sk-...
 ```
 
 ### Local Development (PostgreSQL via Docker)
+
 ```bash
 DB_TYPE=postgres
 DB_HOST=localhost
@@ -107,6 +113,7 @@ OPENAI_API_KEY=sk-...
 ```
 
 ### AWS Production (RDS)
+
 ```bash
 DATABASE_URL=postgresql://user:password@rds-endpoint.us-east-1.rds.amazonaws.com:5432/paper_supplies
 OPENAI_API_KEY=sk-...
@@ -116,18 +123,21 @@ PORT=8000
 ## API Endpoints
 
 ### Health Check
+
 ```bash
 GET /health
 # Response: {"status": "healthy", "timestamp": "2024-01-01T00:00:00", "version": "1.0.0"}
 ```
 
 ### Readiness Check
+
 ```bash
 GET /ready
 # Response: {"status": "ready"}
 ```
 
 ### Process Order
+
 ```bash
 POST /process-order
 Content-Type: application/json
@@ -142,6 +152,7 @@ Content-Type: application/json
 ```
 
 ### Generate Quote
+
 ```bash
 POST /quote
 Content-Type: application/json
@@ -160,23 +171,27 @@ Content-Type: application/json
 ### Option 1: ECS Fargate (Recommended for AWS)
 
 **Pros:**
+
 - Serverless containers
 - Auto-scaling built-in
 - Pay per second
 - No infrastructure management
 
 **Steps:**
+
 1. See `AWS_DEPLOYMENT.md` for detailed instructions
 2. Approximately 20-30 minutes setup
 
 ### Option 2: ECS EC2
 
 **Pros:**
+
 - More control
 - Can run long-running tasks
 - Good for high-traffic apps
 
 **Setup:**
+
 ```bash
 --launch-type EC2
 # Configure in ECS service creation
@@ -185,11 +200,13 @@ Content-Type: application/json
 ### Option 3: App Runner
 
 **Pros:**
+
 - Simplest to use
 - Automatic builds from GitHub
 - Good for small/medium apps
 
 **Setup:**
+
 ```bash
 aws apprunner create-service \
   --source-configuration ImageRepository={ImageIdentifier=YOUR_ECR_IMAGE,ImageRepositoryType=ECR}
@@ -201,11 +218,13 @@ aws apprunner create-service \
 ### From SQLite to PostgreSQL
 
 1. **Dry run to preview:**
+
    ```bash
    python migrate_db.py --dry-run
    ```
 
 2. **Perform migration:**
+
    ```bash
    python migrate_db.py \
      --source-path munder_difflin.db \
@@ -223,11 +242,13 @@ aws apprunner create-service \
 ## Docker Operations
 
 ### Build Image
+
 ```bash
 docker build -t paper-supply-api:latest .
 ```
 
 ### Run Locally
+
 ```bash
 docker run -p 8000:8000 \
   -e OPENAI_API_KEY=sk-... \
@@ -236,11 +257,13 @@ docker run -p 8000:8000 \
 ```
 
 ### Run with PostgreSQL (docker-compose)
+
 ```bash
 OPENAI_API_KEY=sk-... docker-compose up
 ```
 
 ### Push to ECR
+
 ```bash
 # Get login token
 aws ecr get-login-password --region us-east-1 | \
@@ -257,11 +280,13 @@ docker push \
 ## Monitoring & Logging
 
 ### Local
+
 ```bash
 tail -f /var/log/paper-supply-api.log
 ```
 
 ### AWS CloudWatch
+
 ```bash
 # View logs
 aws logs tail ecs/paper-supply-api --follow
@@ -273,6 +298,7 @@ aws logs get-log-events \
 ```
 
 ### CloudWatch Metrics
+
 - CPU Utilization
 - Memory Utilization
 - Task Count
@@ -282,13 +308,15 @@ aws logs get-log-events \
 ## Performance Tuning
 
 ### Container Resources
-| Environment | CPU | Memory | Cost |
-|------------|-----|--------|------|
-| Development | 256 | 512MB | $0.01/hour |
-| Staging | 512 | 1GB | $0.02/hour |
-| Production | 1024 | 2GB | $0.04/hour |
+
+| Environment | CPU  | Memory | Cost       |
+| ----------- | ---- | ------ | ---------- |
+| Development | 256  | 512MB  | $0.01/hour |
+| Staging     | 512  | 1GB    | $0.02/hour |
+| Production  | 1024 | 2GB    | $0.04/hour |
 
 ### Database
+
 - RDS Multi-AZ for high availability
 - Read replicas for scaling read operations
 - Automated backups (7-30 days)
@@ -297,6 +325,7 @@ aws logs get-log-events \
 ## Troubleshooting
 
 ### API won't start
+
 ```bash
 # Check logs
 docker logs container_id
@@ -309,6 +338,7 @@ python -c "from api import app; print(app)"
 ```
 
 ### Database connection issues
+
 ```bash
 # Test PostgreSQL connection
 psql -h host -U user -d paper_supplies
@@ -318,6 +348,7 @@ sqlite3 munder_difflin.db ".tables"
 ```
 
 ### High latency
+
 ```bash
 # Check container performance
 aws ecs describe-tasks --cluster paper-supply-cluster --tasks TASK_ARN
@@ -335,15 +366,16 @@ aws cloudwatch get-metric-statistics \
 
 ## Cost Estimation (AWS)
 
-| Service | Monthly Cost |
-|---------|--------------|
-| ECS Fargate (1 task, t3.micro) | $10-15 |
-| RDS PostgreSQL (db.t3.micro) | $25-40 |
-| Data Transfer | $0-5 |
-| CloudWatch Logs | $0.50 |
-| **Total** | **$35-60** |
+| Service                        | Monthly Cost |
+| ------------------------------ | ------------ |
+| ECS Fargate (1 task, t3.micro) | $10-15       |
+| RDS PostgreSQL (db.t3.micro)   | $25-40       |
+| Data Transfer                  | $0-5         |
+| CloudWatch Logs                | $0.50        |
+| **Total**                      | **$35-60**   |
 
 ### Cost Reduction Tips
+
 - Use Fargate Spot: -70% compute cost
 - Use Reserved Instances: -30-40% RDS cost
 - Implement caching: Reduce database queries
